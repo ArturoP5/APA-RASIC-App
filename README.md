@@ -1,4 +1,4 @@
-# App RASIC Halotech
+# App RASIC
 
 Aplicación web para gestión de tareas con metodología RASIC desarrollada para Halotech.
 
