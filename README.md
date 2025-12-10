@@ -24,4 +24,4 @@ Simplemente abre el archivo HTML en cualquier navegador moderno. Los datos se gu
 
 ## Desarrollado por
 
-Halotech, con asistencia de Claude AI
+Arturo Piñeiro, con asistencia de Claude AI
