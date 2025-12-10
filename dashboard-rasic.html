@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard RASIC - APA</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <style>
+    @media print {
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 p-4">
+  
+  <!-- HEADER -->
+  <div class="max-w-7xl mx-auto bg-white rounded-lg shadow-lg p-6 mb-6">
+    <h1 class="text-3xl font-bold text-center text-orange-600 mb-4">
+      📊 Dashboard RASIC
+    </h1>
+    <p class="text-center text-gray-600" id="nombreProyectoDashboard">Cargando proyecto...</p>
+  </div>
+
+  <!-- BOTONES -->
+  <div class="max-w-7xl mx-auto bg-white rounded-lg shadow-lg p-6 mb-6">
+    <div class="flex flex-wrap gap-3">
+      <button id="btnActualizar" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded font-semibold">
+        🔄 Actualizar Dashboard
+      </button>
+      <button id="btnVolverApp" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded font-semibold">
+        ← Volver a la App
+      </button>
+      <button id="btnImprimirDashboard" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded font-semibold">
+        🖨️ Imprimir Dashboard
+      </button>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-lg shadow p-6">
+      <h3 class="text-sm text-gray-600 mb-2">Total Tareas</h3>
+      <p class="text-3xl font-bold text-blue-600" id="kpiTotal">0</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-6">
+      <h3 class="text-sm text-gray-600 mb-2">En Plazo 🟢</h3>
+      <p class="text-3xl font-bold text-green-600" id="kpiEnPlazo">0</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-6">
+      <h3 class="text-sm text-gray-600 mb-2">Vencidas 🔴</h3>
+      <p class="text-3xl font-bold text-red-600" id="kpiVencidas">0</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-6">
+      <h3 class="text-sm text-gray-600 mb-2">Finalizadas 🔵</h3>
+      <p class="text-3xl font-bold text-blue-600" id="kpiFinalizadas">0</p>
+    </div>
+  </div>
+
+  <!-- GRÁFICOS -->
+  <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+    <div class="bg-white rounded-lg shadow p-6">
+      <h3 class="text-lg font-bold mb-4">Distribución por Estado</h3>
+      <canvas id="chartEstados"></canvas>
+    </div>
+    <div class="bg-white rounded-lg shadow p-6">
+      <h3 class="text-lg font-bold mb-4">Carga por Rol</h3>
+      <canvas id="chartRoles"></canvas>
+    </div>
+  </div>
+
+  <!-- TAREAS QUE REQUIEREN ATENCIÓN -->
+  <div class="max-w-7xl mx-auto bg-white rounded-lg shadow-lg p-6 mb-6">
+    <h3 class="text-lg font-bold mb-4 text-red-600">⚠️ Tareas que Requieren Atención</h3>
+    <div id="tareasAtencion" class="overflow-x-auto">
+      <!-- Se generará dinámicamente -->
+    </div>
+  </div>
+
+  <!-- TIMELINE -->
+  <div class="max-w-7xl mx-auto bg-white rounded-lg shadow-lg p-6">
+    <h3 class="text-lg font-bold mb-4">📅 Próximos Deadlines</h3>
+    <div id="timeline" class="space-y-2">
+      <!-- Se generará dinámicamente -->
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="max-w-7xl mx-auto text-center text-sm text-gray-600 mt-8 py-4">
+    APA RASIC Dashboard - Versión 3.0
+  </footer>
+
+  <script>
+    let tareas = [];
+    let rolesConfigurados = [];
+
+    function cargarDatos() {
+      try {
+        // Cargar nombre proyecto
+        const nombreProyecto = localStorage.getItem('nombreProyecto') || 'Sin nombre';
+        document.getElementById('nombreProyectoDashboard').textContent = nombreProyecto;
+        
+        // Cargar tareas
+        const data = localStorage.getItem('tablaTareasData');
+        tareas = data ? JSON.parse(data) : [];
+        
+        // Cargar roles
+        const roles = localStorage.getItem('rolesConfigurados');
+        rolesConfigurados = roles ? JSON.parse(roles) : [];
+        
+        console.log('📊 Datos cargados:', tareas.length, 'tareas,', rolesConfigurados.length, 'roles');
+        
+        if (tareas.length === 0) {
+          alert('No hay tareas. Vuelve a la app principal y crea algunas tareas primero.');
+          return;
+        }
+        
+        actualizarDashboard();
+      } catch (e) {
+        console.error('Error cargando datos:', e);
+        alert('Error al cargar datos: ' + e.message);
+      }
+    }
+    
+    function actualizarDashboard() {
+      calcularKPIs();
+      generarGraficoEstados();
+      generarGraficoRoles();
+      generarTareasAtencion();
+      generarTimeline();
+    }
+    
+    function calcularKPIs() {
+      const total = tareas.length;
+      const enPlazo = tareas.filter(t => t.estado === '🟢').length;
+      const vencidas = tareas.filter(t => t.estado === '🔴').length;
+      const finalizadas = tareas.filter(t => t.estado === '🔵').length;
+      
+      document.getElementById('kpiTotal').textContent = total;
+      document.getElementById('kpiEnPlazo').textContent = enPlazo;
+      document.getElementById('kpiVencidas').textContent = vencidas;
+      document.getElementById('kpiFinalizadas').textContent = finalizadas;
+    }
+    
+    function generarGraficoEstados() {
+      const ctx = document.getElementById('chartEstados');
+      
+      const enPlazo = tareas.filter(t => t.estado === '🟢').length;
+      const proximas = tareas.filter(t => t.estado === '🟡').length;
+      const vencidas = tareas.filter(t => t.estado === '🔴').length;
+      const finalizadas = tareas.filter(t => t.estado === '🔵').length;
+      
+      new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: ['En Plazo', 'Próximas', 'Vencidas', 'Finalizadas'],
+          datasets: [{
+            data: [enPlazo, proximas, vencidas, finalizadas],
+            backgroundColor: ['#10B981', '#F59E0B', '#EF4444', '#3B82F6']
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom' }
+          }
+        }
+      });
+    }
+    
+    function generarGraficoRoles() {
+      const ctx = document.getElementById('chartRoles');
+      
+      const cargaPorRol = {};
+      rolesConfigurados.forEach(rol => {
+        cargaPorRol[rol.nombre] = 0;
+      });
+      
+      tareas.forEach(tarea => {
+        if (tarea.rasic) {
+          tarea.rasic.forEach((valor, idx) => {
+            if (valor && valor !== '' && rolesConfigurados[idx]) {
+              cargaPorRol[rolesConfigurados[idx].nombre]++;
+            }
+          });
+        }
+      });
+      
+      const labels = Object.keys(cargaPorRol);
+      const data = Object.values(cargaPorRol);
+      
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Asignaciones',
+            data: data,
+            backgroundColor: '#8B5CF6'
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+    
+    function generarTareasAtencion() {
+      const div = document.getElementById('tareasAtencion');
+      
+      const atencion = tareas.filter(t => t.estado === '🔴' || t.estado === '🟡');
+      
+      if (atencion.length === 0) {
+        div.innerHTML = '<p class="text-gray-500">✅ No hay tareas que requieran atención</p>';
+        return;
+      }
+      
+      let html = '<table class="w-full border-collapse border"><thead class="bg-red-100"><tr>';
+      html += '<th class="border p-2">Tarea</th>';
+      html += '<th class="border p-2">Deadline</th>';
+      html += '<th class="border p-2">Estado</th>';
+      html += '</tr></thead><tbody>';
+      
+      atencion.forEach(t => {
+        html += `<tr class="${t.estado === '🔴' ? 'bg-red-50' : 'bg-yellow-50'}">`;
+        html += `<td class="border p-2">${t.tarea || 'Sin descripción'}</td>`;
+        html += `<td class="border p-2">${t.deadline || 'Sin deadline'}</td>`;
+        html += `<td class="border p-2 text-center">${t.estado}</td>`;
+        html += '</tr>';
+      });
+      
+      html += '</tbody></table>';
+      div.innerHTML = html;
+    }
+    
+    function generarTimeline() {
+      const div = document.getElementById('timeline');
+      
+      const conDeadline = tareas.filter(t => t.deadline && t.estado !== '🔵')
+        .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
+        .slice(0, 10);
+      
+      if (conDeadline.length === 0) {
+        div.innerHTML = '<p class="text-gray-500">No hay deadlines próximos</p>';
+        return;
+      }
+      
+      let html = '';
+      conDeadline.forEach(t => {
+        html += `<div class="flex items-center gap-3 p-3 border-l-4 ${
+          t.estado === '🔴' ? 'border-red-500 bg-red-50' :
+          t.estado === '🟡' ? 'border-yellow-500 bg-yellow-50' :
+          'border-green-500 bg-green-50'
+        }">`;
+        html += `<span class="text-2xl">${t.estado}</span>`;
+        html += `<div class="flex-1">`;
+        html += `<p class="font-semibold">${t.tarea || 'Sin descripción'}</p>`;
+        html += `<p class="text-sm text-gray-600">${t.deadline}</p>`;
+        html += `</div>`;
+        html += `</div>`;
+      });
+      
+      div.innerHTML = html;
+    }
+    
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', function() {
+      cargarDatos();
+      
+      document.getElementById('btnActualizar').addEventListener('click', cargarDatos);
+      document.getElementById('btnVolverApp').addEventListener('click', () => {
+        window.location.href = 'RASIC-App-v3.html';
+      });
+      document.getElementById('btnImprimirDashboard').addEventListener('click', () => {
+        window.print();
+      });
+      
+      console.log('✅ Dashboard inicializado');
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>APA RASIC - Gestión de Proyectos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    @media print {
+      .no-print { display: none !important; }
+      body { background: white !important; }
+    }
+    
+    .semaforo {
+      font-size: 1.5rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 p-4">
+  
+  <!-- HEADER -->
+  <div class="max-w-7xl mx-auto bg-white rounded-lg shadow-lg p-6 mb-6">
+    <h1 class="text-3xl font-bold text-center text-blue-600 mb-4">
+      APA RASIC Gestión de Proyectos
+    </h1>
+    
+    <div class="text-center mb-4">
+      <label class="text-sm text-gray-600">Nombre del Proyecto:</label>
+      <input 
+        type="text" 
+        id="nombreProyecto" 
+        placeholder="Escribe el nombre del proyecto..."
+        class="text-xl font-semibold text-center border-b-2 border-blue-300 focus:border-blue-500 outline-none px-4 py-2 w-full max-w-2xl"
+      >
+    </div>
+  </div>
+
+  <!-- INSTRUCCIONES -->
+  <div class="max-w-7xl mx-auto bg-blue-50 rounded-lg p-4 mb-6">
+    <h2 class="font-bold text-blue-800 mb-2">Instrucciones de uso</h2>
+    <ul class="text-sm text-blue-900 space-y-1">
+      <li>• Edita las tareas directamente en la tabla.</li>
+      <li>• Asigna roles RASIC: Responsible (R), Accountable (A), Support (S), Consulted (C), Informed (I).</li>
+      <li>• Elige una fecha límite y se activará un semáforo visual.</li>
+      <li>• Marca como "Finalizada" para archivar la tarea.</li>
+      <li>• Haz clic en Guardar para conservar los datos.</li>
+      <li>• Usa Imprimir para generar un PDF con los colores activos.</li>
+      <li>• Nuevo: Filtra por estado y exporta a CSV.</li>
+      <li>• Nuevo: Importa tareas desde archivos Excel.</li>
+    </ul>
+  </div>
+
+  <!-- BOTONES PRINCIPALES -->
+  <div class="max-w-7xl mx-auto bg-white rounded-lg shadow-lg p-6 mb-6">
+    <div class="flex flex-wrap gap-3 mb-4">
+      <button id="btnAddTask" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded font-semibold">
+        ➕ Añadir Tarea
+      </button>
+      <button id="btnSave" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-semibold">
+        💾 Guardar
+      </button>
+      <button id="btnPrint" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded font-semibold">
+        🖨️ Imprimir
+      </button>
+      <button id="btnExportCSV" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded font-semibold">
+        📤 Exportar CSV
+      </button>
+      <button id="btnImportExcel" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded font-semibold">
+        📥 Importar Excel
+      </button>
+      <button id="btnDescargarPlantilla" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded font-semibold">
+        📄 Descargar Plantilla
+      </button>
+      <button id="btnConfigRoles" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded font-semibold">
+        ⚙️ Configurar Roles
+      </button>
+      <button id="btnDashboard" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded font-semibold">
+        📊 Dashboard
+      </button>
+    </div>
+
+    <!-- FILTROS -->
+    <div class="flex gap-3 mb-4">
+      <label class="text-sm font-semibold">Filtrar por estado:</label>
+      <select id="filtroEstado" class="border rounded px-3 py-1">
+        <option value="todos">Todos los estados</option>
+        <option value="verde">En plazo (🟢)</option>
+        <option value="amarillo">Próximos a vencer (🟡)</option>
+        <option value="rojo">Vencidas (🔴)</option>
+        <option value="azul">Finalizadas (🔵)</option>
+      </select>
+    </div>
+
+    <!-- TABLA RASIC -->
+    <div class="overflow-x-auto">
+      <table id="tablaRASIC" class="w-full border-collapse border">
+        <thead id="theadRASIC" class="bg-blue-500 text-white">
+          <tr>
+            <th class="p-2 border">Tarea</th>
+            <!-- Columnas de roles se generarán dinámicamente -->
+            <th class="p-2 border">Fecha</th>
+            <th class="p-2 border">Deadline</th>
+            <th class="p-2 border">Finalizada</th>
+            <th class="p-2 border">Estado</th>
+            <th class="p-2 border">Nuevo DL</th>
+            <th class="p-2 border no-print">Eliminar</th>
+          </tr>
+        </thead>
+        <tbody id="tbodyRASIC">
+          <!-- Filas se añadirán dinámicamente -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+
+  <!-- MODAL CONFIGURAR ROLES -->
+  <div id="modalConfigRoles" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4">
+      <h2 class="text-2xl font-bold mb-4 text-purple-600">⚙️ Configurar Roles</h2>
+      
+      <div class="mb-4">
+        <p class="text-sm text-gray-600 mb-2">
+          <span id="contadorRoles" class="font-bold">3 de 10 roles</span>
+        </p>
+      </div>
+      
+      <div id="listaRoles" class="space-y-2 mb-4 max-h-96 overflow-y-auto">
+        <!-- Roles se generarán dinámicamente -->
+      </div>
+      
+      <div class="flex gap-3 mb-4">
+        <button id="btnAñadirRol" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">
+          ➕ Añadir Rol
+        </button>
+        <button id="btnGuardarRoles" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded">
+          💾 Guardar Cambios
+        </button>
+        <button id="btnCerrarModal" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded">
+          ❌ Cerrar
+        </button>
+      </div>
+      
+      <p class="text-xs text-gray-500">
+        * Mínimo 3 roles, máximo 10 roles<br>
+        * Los cambios se aplicarán inmediatamente a la tabla
+      </p>
+    </div>
+  </div>
+
+  <!-- INPUT FILE OCULTO -->
+  <input type="file" id="inputExcel" accept=".xlsx,.xls" style="display:none">
+
+  <!-- EMAIL AUTOMÁTICO -->
+  <div id="seccionEmail" class="max-w-7xl mx-auto bg-yellow-50 rounded-lg p-6 mb-6 hidden">
+    <h3 class="font-bold text-orange-800 mb-3">📧 Correo de Seguimiento</h3>
+    <textarea id="emailTexto" rows="6" class="w-full border rounded p-3 text-sm" readonly></textarea>
+    <button id="btnCopiarEmail" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded mt-3">
+      📧 Copiar y Abrir Email
+    </button>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="max-w-7xl mx-auto text-center text-sm text-gray-600 mt-8 py-4">
+    APA RASIC Gestión de Proyectos - Versión 3.0 - Desarrollado por AP
+  </footer>
+
+  <script>
+    // ========== VARIABLES GLOBALES ==========
+    let rolesConfigurados = [
+      { id: 'rol1', nombre: 'CEO' },
+      { id: 'rol2', nombre: 'PMO' },
+      { id: 'rol3', nombre: 'Finanzas' }
+    ];
+    
+    let nombreProyecto = "";
+    const ROLES_RASIC = ["", "R", "A", "S", "C", "I", "N/A"];
+    const PASSWORD_ELIMINAR = "eliminar123";
+
+    // ========== FUNCIONES PRINCIPALES ==========
+    
+    function mostrarNotificacion(mensaje, tipo) {
+      // TODO: Implementar
+      console.log(`[${tipo}] ${mensaje}`);
+    }
+    
+    function cargarRolesGuardados() {
+      try {
+        const guardados = localStorage.getItem('rolesConfigurados');
+        if (guardados) {
+          rolesConfigurados = JSON.parse(guardados);
+          console.log('✅ Roles cargados:', rolesConfigurados.length);
+        }
+      } catch (e) {
+        console.error('Error cargando roles:', e);
+      }
+    }
+    
+    function guardarRolesConfigurados() {
+      try {
+        localStorage.setItem('rolesConfigurados', JSON.stringify(rolesConfigurados));
+        console.log('✅ Roles guardados');
+      } catch (e) {
+        console.error('Error guardando roles:', e);
+      }
+    }
+    
+    function regenerarColumnasTabla() {
+      const thead = document.getElementById('theadRASIC');
+      const primeraFila = thead.querySelector('tr');
+      
+      // Eliminar columnas de roles anteriores
+      const celdas = primeraFila.querySelectorAll('th');
+      celdas.forEach((celda, index) => {
+        if (index > 0 && index < celdas.length - 6) {
+          celda.remove();
+        }
+      });
+      
+      // Insertar nuevas columnas de roles en orden correcto
+      const tareaHeader = primeraFila.querySelector('th:first-child');
+      
+      // Insertar en orden inverso para que queden en el orden correcto
+      for (let i = rolesConfigurados.length - 1; i >= 0; i--) {
+        const th = document.createElement('th');
+        th.className = 'p-2 border';
+        th.textContent = rolesConfigurados[i].nombre;
+        tareaHeader.insertAdjacentElement('afterend', th);
+      }
+      
+      console.log('✅ Columnas regeneradas:', rolesConfigurados.length);
+    }
+    
+    function generarEmailRecordatorio(row, diasRestantes) {
+      try {
+        const tarea = row.querySelector('textarea')?.value || 'Sin descripción';
+        const deadline = Array.from(row.cells).find(cell => {
+          const input = cell.querySelector('input[type="date"]');
+          return input && !input.disabled;
+        })?.querySelector('input[type="date"]')?.value || '';
+        
+        // Identificar responsable (R) y accountable (A)
+        const rasicSelects = row.querySelectorAll('select.rasic-select');
+        let responsable = '';
+        let accountable = '';
+        
+        rasicSelects.forEach((select, idx) => {
+          if (select.value === 'R' && rolesConfigurados[idx]) {
+            responsable = rolesConfigurados[idx].nombre;
+          }
+          if (select.value === 'A' && rolesConfigurados[idx]) {
+            accountable = rolesConfigurados[idx].nombre;
+          }
+        });
+        
+        const emailTexto = document.getElementById('emailTexto');
+        const seccionEmail = document.getElementById('seccionEmail');
+        
+        if (emailTexto) {
+          emailTexto.value = `Asunto: ⚠️ Recordatorio - Tarea próxima a vencer (${diasRestantes} días)
+
+Estimado equipo,
+
+La tarea "${tarea}" está próxima a su fecha límite.
+
+📅 Deadline: ${deadline}
+⏰ Tiempo restante: ${diasRestantes} día(s)
+👤 Responsable: ${responsable || 'No asignado'}
+✅ Aprobador: ${accountable || 'No asignado'}
+
+Por favor, asegúrate de completar esta tarea a tiempo.
+
+Saludos,
+Sistema RASIC`;
+          
+          seccionEmail.classList.remove('hidden');
+          console.log('📧 Email recordatorio generado');
+        }
+      } catch (e) {
+        console.error('Error generando email recordatorio:', e);
+      }
+    }
+    
+    function generarEmailVencida(row) {
+      try {
+        const tarea = row.querySelector('textarea')?.value || 'Sin descripción';
+        const deadline = Array.from(row.cells).find(cell => {
+          const input = cell.querySelector('input[type="date"]');
+          return input && !input.disabled;
+        })?.querySelector('input[type="date"]')?.value || '';
+        
+        // Identificar responsable y accountable
+        const rasicSelects = row.querySelectorAll('select.rasic-select');
+        let responsable = '';
+        let accountable = '';
+        
+        rasicSelects.forEach((select, idx) => {
+          if (select.value === 'R' && rolesConfigurados[idx]) {
+            responsable = rolesConfigurados[idx].nombre;
+          }
+          if (select.value === 'A' && rolesConfigurados[idx]) {
+            accountable = rolesConfigurados[idx].nombre;
+          }
+        });
+        
+        const emailTexto = document.getElementById('emailTexto');
+        const seccionEmail = document.getElementById('seccionEmail');
+        
+        if (emailTexto) {
+          emailTexto.value = `Asunto: 🔴 URGENTE - Tarea vencida - Solicitud de explicación
+
+Estimado equipo,
+
+La tarea "${tarea}" ha vencido su fecha límite.
+
+📅 Deadline original: ${deadline}
+👤 Responsable: ${responsable || 'No asignado'}
+✅ Aprobador: ${accountable || 'No asignado'}
+
+Por favor, proporcione la siguiente información con urgencia:
+
+1. ❓ Motivo del retraso
+2. 🔧 Acción correctora implementada
+3. 📅 Nuevo deadline propuesto
+4. 📊 Impacto en el proyecto
+
+Esta información es necesaria para mantener el seguimiento adecuado del proyecto.
+
+Gracias por su pronta respuesta.
+
+Sistema RASIC`;
+          
+          seccionEmail.classList.remove('hidden');
+          
+          // Habilitar nuevo deadline
+          const nuevoDL = Array.from(row.cells).find(cell => {
+            const input = cell.querySelector('input[type="date"]');
+            return input && input.disabled;
+          })?.querySelector('input[type="date"]');
+          
+          if (nuevoDL) nuevoDL.disabled = false;
+          
+          console.log('📧 Email tarea vencida generado');
+        }
+      } catch (e) {
+        console.error('Error generando email vencida:', e);
+      }
+    }
+    
+    function actualizarSemaforo(input) {
+      try {
+        const row = input.closest('tr');
+        const deadlineValue = input.value;
+        
+        if (!deadlineValue) {
+          // Sin deadline
+          const semaforo = row.querySelector('.semaforo');
+          if (semaforo) semaforo.textContent = '⚪';
+          row.style.backgroundColor = '';
+          return;
+        }
+        
+        // Verificar si está finalizada
+        const finalizadaSelect = Array.from(row.cells).find(cell => {
+          const select = cell.querySelector('select');
+          return select && select.options[0]?.textContent === 'No';
+        })?.querySelector('select');
+        
+        if (finalizadaSelect && finalizadaSelect.value === 'Si') {
+          const semaforo = row.querySelector('.semaforo');
+          if (semaforo) semaforo.textContent = '🔵';
+          row.style.backgroundColor = '#DBEAFE';
+          return;
+        }
+        
+        // Calcular diferencia de días
+        const deadlineDate = new Date(deadlineValue + 'T00:00:00');
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        
+        // Validar fecha pasada solo al seleccionar manualmente
+        const fechaAnterior = input.getAttribute('data-fecha-anterior');
+        const esNuevaFecha = fechaAnterior !== null && input.value !== fechaAnterior;
+        
+        if (deadlineDate < hoy && esNuevaFecha) {
+          mostrarNotificacion('⚠️ No se puede establecer una fecha en el pasado', 'warning');
+          input.value = hoy.toISOString().split('T')[0];
+          deadlineDate.setTime(hoy.getTime());
+        }
+        
+        input.setAttribute('data-fecha-anterior', input.value);
+        
+        const diff = (deadlineDate - hoy) / (1000 * 60 * 60 * 24);
+        const semaforo = row.querySelector('.semaforo');
+        
+        if (diff > 15) {
+          semaforo.textContent = '🟢';
+          row.style.backgroundColor = '#D1FAE5';
+        } else if (diff >= 0) {
+          semaforo.textContent = '🟡';
+          row.style.backgroundColor = '#FEF3C7';
+          
+          // Email recordatorio si está a 5 días o menos
+          if (diff <= 5) {
+            generarEmailRecordatorio(row, Math.ceil(diff));
+          }
+        } else {
+          semaforo.textContent = '🔴';
+          row.style.backgroundColor = '#FEE2E2';
+          
+          // Habilitar nuevo deadline
+          const nuevoDL = Array.from(row.cells).find(cell => {
+            const input = cell.querySelector('input[type="date"]');
+            return input && input.disabled;
+          })?.querySelector('input[type="date"]');
+          
+          if (nuevoDL) nuevoDL.disabled = false;
+          
+          // Generar email para tarea vencida
+          generarEmailVencida(row);
+        }
+        
+        console.log('✅ Semáforo actualizado:', semaforo.textContent);
+      } catch (e) {
+        console.error('Error actualizando semáforo:', e);
+      }
+    }
+    
+    function cargarNombreProyecto() {
+      const input = document.getElementById('nombreProyecto');
+      const guardado = localStorage.getItem('nombreProyecto');
+      if (guardado) {
+        input.value = guardado;
+      }
+      
+      input.addEventListener('change', function() {
+        localStorage.setItem('nombreProyecto', this.value);
+        console.log('✅ Nombre proyecto guardado');
+      });
+    }
+    
+    function filtrarPorEstado(estado) {
+      const filas = document.querySelectorAll('#tbodyRASIC tr');
+      
+      filas.forEach(row => {
+        const semaforo = row.querySelector('.semaforo')?.textContent;
+        
+        if (estado === 'todos') {
+          row.style.display = '';
+        } else if (estado === 'verde' && semaforo === '🟢') {
+          row.style.display = '';
+        } else if (estado === 'amarillo' && semaforo === '🟡') {
+          row.style.display = '';
+        } else if (estado === 'rojo' && semaforo === '🔴') {
+          row.style.display = '';
+        } else if (estado === 'azul' && semaforo === '🔵') {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+      
+      console.log('🔍 Filtrado por:', estado);
+    }
+    
+    function copiarEmailYAbrir() {
+      const emailTexto = document.getElementById('emailTexto');
+      const texto = emailTexto.value;
+      
+      // Copiar al portapapeles
+      navigator.clipboard.writeText(texto).then(() => {
+        mostrarNotificacion('📋 Email copiado al portapapeles', 'success');
+        
+        // Abrir cliente de email
+        const mailto = `mailto:?subject=Tarea Vencida&body=${encodeURIComponent(texto)}`;
+        window.location.href = mailto;
+      }).catch(e => {
+        console.error('Error copiando:', e);
+        mostrarNotificacion('❌ Error al copiar', 'error');
+      });
+    }
+    
+    function protegerEliminacion(id) {
+      const password = prompt('🔒 Introduce la contraseña para eliminar:');
+      
+      if (password === null) {
+        return; // Cancelado
+      }
+      
+      if (password !== PASSWORD_ELIMINAR) {
+        mostrarNotificacion('❌ Contraseña incorrecta', 'error');
+        return;
+      }
+      
+      const confirmar = confirm('¿Estás seguro de eliminar esta tarea?');
+      if (!confirmar) {
+        return;
+      }
+      
+      // Eliminar la fila
+      const row = document.querySelector(`tr[data-id="${id}"]`);
+      if (row) {
+        row.remove();
+        mostrarNotificacion('✅ Tarea eliminada', 'success');
+        guardarTodo(); // Guardar automáticamente
+        console.log('🗑️ Tarea eliminada:', id);
+      }
+    }
+    
+    function exportarCSV() {
+      try {
+        // Crear headers dinámicos
+        let headers = ['Tarea'];
+        rolesConfigurados.forEach(rol => {
+          headers.push(rol.nombre);
+        });
+        headers.push('Fecha', 'Deadline', 'Finalizada', 'Estado', 'Nuevo DL');
+        
+        let csv = headers.join(',') + '\n';
+        
+        // Añadir filas
+        const filas = document.querySelectorAll('#tbodyRASIC tr');
+        filas.forEach(row => {
+          const tarea = (row.querySelector('textarea')?.value || '').replace(/,/g, ';');
+          
+          const rasicSelects = row.querySelectorAll('select.rasic-select');
+          const rasic = Array.from(rasicSelects).map(s => s.value).join(',');
+          
+          const fechaActual = Array.from(row.cells).find(cell => {
+            const text = cell.textContent.trim();
+            return /^\d{4}-\d{2}-\d{2}$/.test(text) && !cell.querySelector('input');
+          })?.textContent || '';
+          
+          const deadline = Array.from(row.cells).find(cell => {
+            const input = cell.querySelector('input[type="date"]');
+            return input && !input.disabled;
+          })?.querySelector('input[type="date"]')?.value || '';
+          
+          const finalizada = Array.from(row.cells).find(cell => {
+            const select = cell.querySelector('select');
+            return select && select.options[0]?.textContent === 'No';
+          })?.querySelector('select')?.value || 'No';
+          
+          const estado = row.querySelector('.semaforo')?.textContent || '⚪';
+          
+          const nuevoDeadline = Array.from(row.cells).find(cell => {
+            const input = cell.querySelector('input[type="date"]');
+            return input && input.disabled;
+          })?.querySelector('input[type="date"]')?.value || '';
+          
+          csv += `"${tarea}",${rasic},${fechaActual},${deadline},${finalizada},${estado},${nuevoDeadline}\n`;
+        });
+        
+        // Descargar
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        
+        link.setAttribute('href', url);
+        link.setAttribute('download', `RASIC_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.display = 'none';
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        mostrarNotificacion('✅ CSV exportado correctamente', 'success');
+        console.log('📤 CSV exportado');
+      } catch (e) {
+        console.error('Error exportando CSV:', e);
+        mostrarNotificacion('❌ Error al exportar CSV', 'error');
+      }
+    }
+    
+    function abrirModalConfigRoles() {
+      generarListaRoles();
+      actualizarContadorRoles();
+      document.getElementById('modalConfigRoles').classList.remove('hidden');
+    }
+    
+    function cerrarModalConfigRoles() {
+      document.getElementById('modalConfigRoles').classList.add('hidden');
+    }
+    
+    function generarListaRoles() {
+      const lista = document.getElementById('listaRoles');
+      lista.innerHTML = '';
+      
+      rolesConfigurados.forEach((rol, index) => {
+        const div = document.createElement('div');
+        div.className = 'flex gap-2 items-center';
+        div.innerHTML = `
+          <span class="text-gray-600 w-8">${index + 1}.</span>
+          <input 
+            type="text" 
+            value="${rol.nombre}" 
+            data-index="${index}"
+            class="flex-1 border rounded px-3 py-2 input-rol"
+            placeholder="Nombre del rol"
+          >
+          <button 
+            class="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded btn-eliminar-rol"
+            data-index="${index}"
+            ${rolesConfigurados.length <= 3 ? 'disabled' : ''}
+          >
+            🗑️
+          </button>
+        `;
+        lista.appendChild(div);
+      });
+      
+      // Event listeners para inputs
+      document.querySelectorAll('.input-rol').forEach(input => {
+        input.addEventListener('change', function() {
+          const index = parseInt(this.dataset.index);
+          rolesConfigurados[index].nombre = this.value.trim() || `Rol ${index + 1}`;
+        });
+      });
+      
+      // Event listeners para botones eliminar
+      document.querySelectorAll('.btn-eliminar-rol').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const index = parseInt(this.dataset.index);
+          eliminarRol(index);
+        });
+      });
+    }
+    
+    function actualizarContadorRoles() {
+      const contador = document.getElementById('contadorRoles');
+      contador.textContent = `${rolesConfigurados.length} de 10 roles`;
+      
+      // Deshabilitar botón añadir si hay 10
+      const btnAñadir = document.getElementById('btnAñadirRol');
+      btnAñadir.disabled = rolesConfigurados.length >= 10;
+      
+      if (rolesConfigurados.length >= 10) {
+        btnAñadir.classList.add('opacity-50', 'cursor-not-allowed');
+      } else {
+        btnAñadir.classList.remove('opacity-50', 'cursor-not-allowed');
+      }
+    }
+    
+    function añadirRol() {
+      if (rolesConfigurados.length >= 10) {
+        mostrarNotificacion('⚠️ Máximo 10 roles', 'warning');
+        return;
+      }
+      
+      const nuevoId = 'rol' + Date.now();
+      rolesConfigurados.push({
+        id: nuevoId,
+        nombre: `Nuevo Rol ${rolesConfigurados.length + 1}`
+      });
+      
+      generarListaRoles();
+      actualizarContadorRoles();
+      console.log('✅ Rol añadido');
+    }
+    
+    function eliminarRol(index) {
+      if (rolesConfigurados.length <= 3) {
+        mostrarNotificacion('⚠️ Mínimo 3 roles requeridos', 'warning');
+        return;
+      }
+      
+      const confirmar = confirm(`¿Eliminar el rol "${rolesConfigurados[index].nombre}"?`);
+      if (!confirmar) return;
+      
+      rolesConfigurados.splice(index, 1);
+      generarListaRoles();
+      actualizarContadorRoles();
+      console.log('✅ Rol eliminado');
+    }
+    
+    function guardarCambiosRoles() {
+      // Guardar en localStorage
+      guardarRolesConfigurados();
+      
+      // Regenerar columnas de la tabla
+      regenerarColumnasTabla();
+      
+      // Ajustar filas existentes
+      const filas = document.querySelectorAll('#tbodyRASIC tr');
+      filas.forEach(row => {
+        const rasicActual = [];
+        const selectsActuales = row.querySelectorAll('select.rasic-select');
+        selectsActuales.forEach(s => rasicActual.push(s.value));
+        
+        // Ajustar array
+        while (rasicActual.length < rolesConfigurados.length) {
+          rasicActual.push('');
+        }
+        if (rasicActual.length > rolesConfigurados.length) {
+          rasicActual.length = rolesConfigurados.length;
+        }
+        
+        // Regenerar selectores RASIC
+        const primeraColumna = row.querySelector('td:first-child');
+        const columnasRASIC = row.querySelectorAll('select.rasic-select');
+        
+        columnasRASIC.forEach(s => s.closest('td').remove());
+        
+        rasicActual.forEach((valor, idx) => {
+          const td = document.createElement('td');
+          td.className = 'p-2 border';
+          td.innerHTML = `
+            <select class="w-full p-1 border rounded text-xs rasic-select">
+              ${ROLES_RASIC.map(r => `<option ${r === valor ? 'selected' : ''}>${r}</option>`).join('')}
+            </select>
+          `;
+          primeraColumna.insertAdjacentElement('afterend', td);
+        });
+      });
+      
+      guardarTodo();
+      mostrarNotificacion('✅ Roles actualizados correctamente', 'success');
+      cerrarModalConfigRoles();
+      console.log('✅ Cambios de roles aplicados');
+    }
+    
+    function descargarPlantillaExcel() {
+      try {
+        // Crear headers dinámicos
+        const headers = ['Tarea'];
+        rolesConfigurados.forEach(rol => {
+          headers.push(rol.nombre);
+        });
+        headers.push('Deadline', 'Finalizada');
+        
+        // Instrucciones
+        const instrucciones = [
+          ['=== PLANTILLA RASIC - INSTRUCCIONES ==='],
+          [''],
+          ['1. Rellena Tarea con descripción'],
+          ['2. Roles: usa R, A, S, C, I, N/A (o vacío)'],
+          ['3. Deadline: formato YYYY-MM-DD (ej: 2025-12-31)'],
+          ['4. Finalizada: No o Si'],
+          ['5. Elimina ejemplos antes de importar'],
+          ['6. Guarda y usa botón Importar Excel'],
+          [''],
+          ["VALORES ROLES: R=Responsible, A=Accountable, S=Support, C=Consulted, I=Informed, NA=No Aplica"],
+          ['']
+        ];
+        
+        // Ejemplos
+        const ejemplos = [
+          ['Reunión kickoff', 'R', 'A', '', 'S', 'I', '', '', '', '', '', '2025-12-20', 'No'],
+          ['Revisar docs', '', 'A', 'R', '', 'C', '', '', '', '', '', '2025-12-25', 'No'],
+          ['Aprobar presupuesto', 'I', 'A', 'S', 'R', '', '', '', '', '', '', '2026-01-10', 'No']
+        ];
+        
+        // Ajustar ejemplos a número de roles actual
+        const ejemplosAjustados = ejemplos.map(row => {
+          const tarea = row[0];
+          const rasic = row.slice(1, 11).slice(0, rolesConfigurados.length);
+          while (rasic.length < rolesConfigurados.length) rasic.push('');
+          return [tarea, ...rasic, row[11], row[12]];
+        });
+        
+        // Crear workbook
+        const ws_data = [...instrucciones, headers, ...ejemplosAjustados];
+        const ws = XLSX.utils.aoa_to_sheet(ws_data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Tareas RASIC');
+        
+        // Descargar
+        XLSX.writeFile(wb, `Plantilla_RASIC_${new Date().toISOString().split('T')[0]}.xlsx`);
+        
+        mostrarNotificacion('✅ Plantilla descargada', 'success');
+        console.log('📥 Plantilla generada');
+      } catch (e) {
+        console.error('Error:', e);
+        mostrarNotificacion('❌ Error: ' + e.message, 'error');
+      }
+    }
+    
+    function importarExcel(file) {
+      try {
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+            
+            // Buscar fila de headers
+            let headerRow = -1;
+            for (let i = 0; i < jsonData.length; i++) {
+              if (jsonData[i][0] === 'Tarea') {
+                headerRow = i;
+                break;
+              }
+            }
+            
+            if (headerRow === -1) {
+              mostrarNotificacion('❌ No se encontró columna "Tarea"', 'error');
+              return;
+            }
+            
+            const headers = jsonData[headerRow];
+            const numRolesExcel = headers.length - 3;
+            const numRolesApp = rolesConfigurados.length;
+            
+            if (numRolesExcel !== numRolesApp) {
+              const msg = `Excel tiene ${numRolesExcel} roles, app tiene ${numRolesApp}. ¿Continuar?`;
+              if (!confirm(msg)) return;
+            }
+            
+            let importadas = 0;
+            const tbody = document.getElementById('tbodyRASIC');
+            
+            for (let i = headerRow + 1; i < jsonData.length; i++) {
+              const row = jsonData[i];
+              if (!row[0] || row[0].trim() === '') continue;
+              
+              const tarea = row[0];
+              const rasic = [];
+              for (let j = 1; j <= numRolesApp; j++) {
+                rasic.push(row[j] || '');
+              }
+              const deadline = row[numRolesApp + 1] || '';
+              const finalizada = row[numRolesApp + 2] || 'No';
+              
+              const tr = document.createElement('tr');
+              tr.className = 'text-center border text-xs hover:bg-gray-50';
+              tr.dataset.id = Date.now() + i;
+              
+              let html = `<td class="p-2 border"><textarea class="w-full p-1 border rounded resize-y" rows="2">${tarea}</textarea></td>`;
+              
+              rasic.forEach(valor => {
+                html += `<td class="p-2 border">
+                  <select class="w-full p-1 border rounded text-xs rasic-select">
+                    ${ROLES_RASIC.map(r => `<option ${r === valor ? 'selected' : ''}>${r}</option>`).join('')}
+                  </select>
+                </td>`;
+              });
+              
+              const fechaActual = new Date().toISOString().split('T')[0];
+              html += `
+                <td class="p-2 border">${fechaActual}</td>
+                <td class="p-2 border"><input type="date" class="w-full p-1 border rounded" value="${deadline}"></td>
+                <td class="p-2 border">
+                  <select class="w-full p-1 border rounded">
+                    <option ${finalizada === 'No' ? 'selected' : ''}>No</option>
+                    <option ${finalizada === 'Si' ? 'selected' : ''}>Si</option>
+                  </select>
+                </td>
+                <td class="p-2 border semaforo">⚪</td>
+                <td class="p-2 border"><input type="date" class="w-full p-1 border rounded" disabled></td>
+                <td class="p-2 border no-print">
+                  <button class="text-red-600 hover:text-red-800 btnEliminar" data-id="${tr.dataset.id}">🗑️</button>
+                </td>
+              `;
+              
+              tr.innerHTML = html;
+              tbody.appendChild(tr);
+              
+              const btnEliminar = tr.querySelector('.btnEliminar');
+              if (btnEliminar) {
+                btnEliminar.addEventListener('click', function() {
+                  protegerEliminacion(this.dataset.id);
+                });
+              }
+              
+              const deadlineInput = Array.from(tr.cells).find(cell => {
+                const input = cell.querySelector('input[type="date"]');
+                return input && !input.disabled;
+              })?.querySelector('input[type="date"]');
+              
+              if (deadlineInput) {
+                deadlineInput.addEventListener('change', function() {
+                  actualizarSemaforo(this);
+                });
+                if (deadline) actualizarSemaforo(deadlineInput);
+              }
+              
+              importadas++;
+            }
+            
+            guardarTodo();
+            mostrarNotificacion(`✅ ${importadas} tareas importadas`, 'success');
+            console.log('📥 Importadas', importadas, 'tareas');
+          } catch (e) {
+            console.error('Error procesando:', e);
+            mostrarNotificacion('❌ Error: ' + e.message, 'error');
+          }
+        };
+        
+        reader.readAsArrayBuffer(file);
+      } catch (e) {
+        console.error('Error:', e);
+        mostrarNotificacion('❌ Error: ' + e.message, 'error');
+      }
+    }
+    
+    function agregarNuevaTarea() {
+      const tbody = document.getElementById('tbodyRASIC');
+      const tr = document.createElement('tr');
+      tr.className = 'text-center border text-xs hover:bg-gray-50';
+      
+      const id = Date.now();
+      tr.dataset.id = id;
+      
+      const fechaActual = new Date().toISOString().split('T')[0];
+      
+      // Generar HTML de la fila
+      let html = `<td class="p-2 border"><textarea class="w-full p-1 border rounded resize-y" rows="2"></textarea></td>`;
+      
+      // Columnas de roles dinámicas
+      rolesConfigurados.forEach(() => {
+        html += `<td class="p-2 border">
+          <select class="w-full p-1 border rounded text-xs rasic-select">
+            ${ROLES_RASIC.map(r => `<option>${r}</option>`).join('')}
+          </select>
+        </td>`;
+      });
+      
+      // Resto de columnas
+      html += `
+        <td class="p-2 border">${fechaActual}</td>
+        <td class="p-2 border"><input type="date" class="w-full p-1 border rounded"></td>
+        <td class="p-2 border">
+          <select class="w-full p-1 border rounded">
+            <option>No</option>
+            <option>Si</option>
+          </select>
+        </td>
+        <td class="p-2 border semaforo">⚪</td>
+        <td class="p-2 border"><input type="date" class="w-full p-1 border rounded" disabled></td>
+        <td class="p-2 border no-print">
+          <button class="text-red-600 hover:text-red-800 btnEliminar" data-id="${id}">🗑️</button>
+        </td>
+      `;
+      
+      tr.innerHTML = html;
+      tbody.appendChild(tr);
+      
+      // Event listener para botón eliminar
+      const btnEliminar = tr.querySelector('.btnEliminar');
+      if (btnEliminar) {
+        btnEliminar.addEventListener('click', function() {
+          protegerEliminacion(this.dataset.id);
+        });
+      }
+      
+      // Event listener para deadline
+      const deadlineInput = Array.from(tr.cells).find(cell => {
+        const input = cell.querySelector('input[type="date"]');
+        return input && !input.disabled;
+      })?.querySelector('input[type="date"]');
+      
+      if (deadlineInput) {
+        deadlineInput.addEventListener('change', function() {
+          actualizarSemaforo(this);
+        });
+      }
+      
+      console.log('✅ Tarea añadida');
+    }
+    
+    function guardarTodo() {
+      try {
+        const data = [];
+        const filas = document.querySelectorAll('#tbodyRASIC tr');
+        
+        filas.forEach(row => {
+          const id = row.dataset.id;
+          const tarea = row.querySelector('textarea')?.value || '';
+          
+          // Obtener valores RASIC
+          const rasicSelects = row.querySelectorAll('select.rasic-select');
+          const rasic = Array.from(rasicSelects).map(s => s.value);
+          
+          // Fecha actual
+          const fechaActual = Array.from(row.cells).find(cell => {
+            const text = cell.textContent.trim();
+            return /^\d{4}-\d{2}-\d{2}$/.test(text) && !cell.querySelector('input');
+          })?.textContent || new Date().toISOString().split('T')[0];
+          
+          // Deadline
+          const deadline = Array.from(row.cells).find(cell => {
+            const input = cell.querySelector('input[type="date"]');
+            return input && !input.disabled;
+          })?.querySelector('input[type="date"]')?.value || '';
+          
+          // Finalizada
+          const tareaFinalizada = Array.from(row.cells).find(cell => {
+            const select = cell.querySelector('select');
+            return select && select.options[0]?.textContent === 'No';
+          })?.querySelector('select')?.value || 'No';
+          
+          // Estado (semáforo)
+          const estado = row.querySelector('.semaforo')?.textContent || '⚪';
+          
+          // Nuevo deadline
+          const nuevoDeadline = Array.from(row.cells).find(cell => {
+            const input = cell.querySelector('input[type="date"]');
+            return input && input.disabled;
+          })?.querySelector('input[type="date"]')?.value || '';
+          
+          data.push({
+            id,
+            tarea,
+            rasic,
+            fechaActual,
+            deadline,
+            tareaFinalizada,
+            estado,
+            nuevoDeadline
+          });
+        });
+        
+        localStorage.setItem('tablaTareasData', JSON.stringify(data));
+        mostrarNotificacion('✅ Datos guardados correctamente', 'success');
+        console.log('💾 Guardadas', data.length, 'tareas');
+      } catch (e) {
+        console.error('Error guardando:', e);
+        mostrarNotificacion('❌ Error al guardar: ' + e.message, 'error');
+      }
+    }
+    
+    function cargarTareas() {
+      try {
+        const data = localStorage.getItem('tablaTareasData');
+        if (!data) {
+          console.log('📂 No hay tareas guardadas');
+          return;
+        }
+        
+        const tareas = JSON.parse(data);
+        console.log('📂 Cargando', tareas.length, 'tareas...');
+        
+        const tbody = document.getElementById('tbodyRASIC');
+        tbody.innerHTML = '';
+        
+        tareas.forEach(task => {
+          // Ajustar array RASIC al número actual de roles
+          const numRolesActual = rolesConfigurados.length;
+          const numRolesTarea = task.rasic.length;
+          
+          if (numRolesTarea < numRolesActual) {
+            task.rasic = [...task.rasic, ...Array(numRolesActual - numRolesTarea).fill('')];
+          } else if (numRolesTarea > numRolesActual) {
+            task.rasic = task.rasic.slice(0, numRolesActual);
+          }
+          
+          // Crear fila
+          const tr = document.createElement('tr');
+          tr.className = 'text-center border text-xs hover:bg-gray-50';
+          tr.dataset.id = task.id;
+          
+          let html = `<td class="p-2 border"><textarea class="w-full p-1 border rounded resize-y" rows="2">${task.tarea}</textarea></td>`;
+          
+          // Columnas RASIC
+          task.rasic.forEach((valor, idx) => {
+            html += `<td class="p-2 border">
+              <select class="w-full p-1 border rounded text-xs rasic-select">
+                ${ROLES_RASIC.map(r => `<option ${r === valor ? 'selected' : ''}>${r}</option>`).join('')}
+              </select>
+            </td>`;
+          });
+          
+          // Resto de columnas
+          html += `
+            <td class="p-2 border">${task.fechaActual}</td>
+            <td class="p-2 border"><input type="date" class="w-full p-1 border rounded" value="${task.deadline || ''}"></td>
+            <td class="p-2 border">
+              <select class="w-full p-1 border rounded">
+                <option ${task.tareaFinalizada === 'No' ? 'selected' : ''}>No</option>
+                <option ${task.tareaFinalizada === 'Si' ? 'selected' : ''}>Si</option>
+              </select>
+            </td>
+            <td class="p-2 border semaforo">${task.estado}</td>
+            <td class="p-2 border"><input type="date" class="w-full p-1 border rounded" value="${task.nuevoDeadline || ''}" ${task.estado !== '🔴' ? 'disabled' : ''}></td>
+            <td class="p-2 border no-print">
+              <button class="text-red-600 hover:text-red-800 btnEliminar" data-id="${task.id}">🗑️</button>
+            </td>
+          `;
+          
+          tr.innerHTML = html;
+          
+          // Aplicar color de fila
+          if (task.estado === '🟢') tr.style.backgroundColor = '#D1FAE5';
+          else if (task.estado === '🟡') tr.style.backgroundColor = '#FEF3C7';
+          else if (task.estado === '🔴') tr.style.backgroundColor = '#FEE2E2';
+          else if (task.estado === '🔵') tr.style.backgroundColor = '#DBEAFE';
+          
+          tbody.appendChild(tr);
+          
+          // Event listener botón eliminar
+          const btnEliminar = tr.querySelector('.btnEliminar');
+          if (btnEliminar) {
+            btnEliminar.addEventListener('click', function() {
+              protegerEliminacion(this.dataset.id);
+            });
+          }
+          
+          // Event listener deadline
+          const deadlineInput = Array.from(tr.cells).find(cell => {
+            const input = cell.querySelector('input[type="date"]');
+            return input && !input.disabled;
+          })?.querySelector('input[type="date"]');
+          
+          if (deadlineInput) {
+            deadlineInput.addEventListener('change', function() {
+              actualizarSemaforo(this);
+            });
+          }
+        });
+        
+        console.log('✅ Tareas cargadas');
+      } catch (e) {
+        console.error('Error cargando tareas:', e);
+      }
+    }
+
+    // ========== INICIALIZACIÓN ==========
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('🚀 Inicializando APA RASIC v3.0...');
+      
+      // Cargar configuración
+      cargarRolesGuardados();
+      regenerarColumnasTabla();
+      cargarTareas();
+      
+      // Event listeners botones
+      document.getElementById('btnAddTask').addEventListener('click', agregarNuevaTarea);
+      document.getElementById('btnSave').addEventListener('click', guardarTodo);
+      document.getElementById('btnPrint').addEventListener('click', () => window.print());
+      document.getElementById('btnExportCSV').addEventListener('click', exportarCSV);
+      document.getElementById('btnImportExcel').addEventListener('click', function() {
+        document.getElementById('inputExcel').click();
+      });
+      document.getElementById('btnDescargarPlantilla').addEventListener('click', descargarPlantillaExcel);
+      document.getElementById('inputExcel').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+          importarExcel(file);
+          e.target.value = '';
+        }
+      });
+      document.getElementById('filtroEstado').addEventListener('change', function() {
+        filtrarPorEstado(this.value);
+      });
+      document.getElementById('btnCopiarEmail').addEventListener('click', copiarEmailYAbrir);
+      
+      // Cargar nombre proyecto
+      cargarNombreProyecto();
+      
+      // Modal configurar roles
+      document.getElementById('btnConfigRoles').addEventListener('click', abrirModalConfigRoles);
+      document.getElementById('btnCerrarModal').addEventListener('click', cerrarModalConfigRoles);
+      document.getElementById('btnAñadirRol').addEventListener('click', añadirRol);
+      document.getElementById('btnGuardarRoles').addEventListener('click', guardarCambiosRoles);
+      
+      document.getElementById('btnDashboard').addEventListener('click', () => {
+        window.open('dashboard-rasic.html', '_blank');
+      });
+      
+      console.log('✅ App inicializada');
+    });
+  </script>
+</body>
+</html>
