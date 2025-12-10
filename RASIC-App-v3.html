@@ -836,7 +836,7 @@ Sistema RASIC`;
               tr.className = 'text-center border text-xs hover:bg-gray-50';
               tr.dataset.id = Date.now() + i;
               
-              let html = `<td class="p-2 border"><textarea class="w-full p-1 border rounded resize-y" rows="2">${tarea}</textarea></td>`;
+              let html = `<td class="p-2 border"><textarea class="w-full p-1 border rounded resize-y" rows="2" style="min-width: 280px;">${tarea}</textarea></td>`;
               
               rasic.forEach(valor => {
                 html += `<td class="p-2 border">
@@ -915,7 +915,7 @@ Sistema RASIC`;
       const fechaActual = new Date().toISOString().split('T')[0];
       
       // Generar HTML de la fila
-      let html = `<td class="p-2 border"><textarea class="w-full p-1 border rounded resize-y" rows="2"></textarea></td>`;
+      let html = `<td class="p-2 border"><textarea class="w-full p-1 border rounded resize-y" rows="2" style="min-width: 280px;"></textarea></td>`;
       
       // Columnas de roles dinámicas
       rolesConfigurados.forEach(() => {
@@ -1060,7 +1060,7 @@ Sistema RASIC`;
           tr.className = 'text-center border text-xs hover:bg-gray-50';
           tr.dataset.id = task.id;
           
-          let html = `<td class="p-2 border"><textarea class="w-full p-1 border rounded resize-y" rows="2">${task.tarea}</textarea></td>`;
+          let html = `<td class="p-2 border"><textarea class="w-full p-1 border rounded resize-y" rows="2" style="min-width: 280px;">${task.tarea}</textarea></td>`;
           
           // Columnas RASIC
           task.rasic.forEach((valor, idx) => {
