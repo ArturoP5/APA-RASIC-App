@@ -184,6 +184,7 @@
     let nombreProyecto = "";
     const ROLES_RASIC = ["", "R", "A", "S", "C", "I", "N/A"];
     const PASSWORD_ELIMINAR = "eliminar123";
+const PASSWORD_APROBAR = "aprobar123";
 
     // ========== FUNCIONES PRINCIPALES ==========
     
@@ -355,8 +356,117 @@ Sistema RASIC`;
       }
     }
     
+    function confirmarYBloquearDeadline(input) {
+      const valor = input.value;
+      if (!valor) return true;
+      
+      // Si ya está bloqueado, no hacer nada
+      if (input.dataset.bloqueado === 'true') {
+        return false;
+      }
+      
+      const confirmar = confirm(`¿Estás seguro de establecer el deadline en ${valor}?\n\nEsta fecha NO se podrá cambiar después.`);
+      
+      if (confirmar) {
+        input.dataset.bloqueado = 'true';
+        input.setAttribute('data-valor-bloqueado', valor);
+        input.style.backgroundColor = '#E5E7EB'; // Gris claro
+        input.style.cursor = 'not-allowed';
+        return true;
+      } else {
+        input.value = '';
+        return false;
+      }
+    }
+    
+    function validarYBloquearNuevoDeadline(input) {
+      const valor = input.value;
+      if (!valor) return true;
+      
+      const password = prompt('🔒 Contraseña de Aprobación\n\nSolo el Aprobador puede establecer un nuevo deadline.\n\nIntroduce la contraseña:');
+      
+      if (password === null) {
+        input.value = '';
+        return false;
+      }
+      
+      if (password !== PASSWORD_APROBAR) {
+        alert('❌ Contraseña incorrecta');
+        input.value = '';
+        return false;
+      }
+      
+      // Contraseña correcta - bloquear y poner naranja
+      input.disabled = true;
+      input.style.backgroundColor = '#FED7AA';
+      
+      const row = input.closest('tr');
+      const semaforo = row.querySelector('.semaforo');
+      if (semaforo) semaforo.textContent = '🟠';
+      row.style.backgroundColor = '#FED7AA';
+      
+      console.log('🟠 Nuevo deadline aprobado');
+      return true;
+    }
+    
+    function validarFinalizadaSi(select) {
+      if (select.value !== 'Si') {
+        // Cambiar a No - quitar tachado
+        const row = select.closest('tr');
+        row.style.opacity = '1';
+        
+        // Quitar tachado de todas las celdas y sus elementos
+        Array.from(row.cells).forEach(cell => {
+          cell.style.textDecoration = 'none';
+          const inputs = cell.querySelectorAll('input, select, textarea');
+          inputs.forEach(el => {
+            el.style.textDecoration = 'none';
+          });
+        });
+        return true;
+      }
+      
+      const password = prompt('🔒 Contraseña de Aprobación\n\nSolo el Aprobador puede finalizar una tarea.\n\nIntroduce la contraseña:');
+      
+      if (password === null || password !== PASSWORD_APROBAR) {
+        if (password !== null) alert('❌ Contraseña incorrecta');
+        select.value = 'No';
+        return false;
+      }
+      
+      // Contraseña correcta - azul y tachado
+      const row = select.closest('tr');
+      const semaforo = row.querySelector('.semaforo');
+      if (semaforo) semaforo.textContent = '🔵';
+      row.style.backgroundColor = '#DBEAFE';
+      row.style.opacity = '0.7';
+      
+      // Tachar todas las celdas y sus elementos
+      Array.from(row.cells).forEach(cell => {
+        cell.style.textDecoration = 'line-through';
+        // Aplicar también a inputs, selects y textareas
+        const inputs = cell.querySelectorAll('input, select, textarea');
+        inputs.forEach(el => {
+          el.style.textDecoration = 'line-through';
+        });
+      });
+      
+      console.log('🔵 Tarea finalizada');
+      return true;
+    }
+    
     function actualizarSemaforo(input) {
       try {
+        // Si el deadline está bloqueado, no permitir cambios
+        if (input.dataset.bloqueado === 'true') {
+          const valorAnterior = input.getAttribute('data-valor-bloqueado');
+          if (valorAnterior && input.value !== valorAnterior) {
+            alert('⚠️ El deadline está bloqueado y no se puede modificar');
+            input.value = valorAnterior;
+            return;
+          }
+        }
+        
         const row = input.closest('tr');
         const deadlineValue = input.value;
         
@@ -849,15 +959,15 @@ Sistema RASIC`;
               const fechaActual = new Date().toISOString().split('T')[0];
               html += `
                 <td class="p-2 border">${fechaActual}</td>
-                <td class="p-2 border"><input type="date" class="w-full p-1 border rounded" value="${deadline}"></td>
+                <td class="p-2 border"><input type="date" class="w-full p-1 border rounded deadline-original" value="${deadline}"></td>
                 <td class="p-2 border">
-                  <select class="w-full p-1 border rounded">
+                  <select class="w-full p-1 border rounded select-finalizada">
                     <option ${finalizada === 'No' ? 'selected' : ''}>No</option>
                     <option ${finalizada === 'Si' ? 'selected' : ''}>Si</option>
                   </select>
                 </td>
                 <td class="p-2 border semaforo">⚪</td>
-                <td class="p-2 border"><input type="date" class="w-full p-1 border rounded" disabled></td>
+                <td class="p-2 border"><input type="date" class="w-full p-1 border rounded nuevo-deadline" disabled></td>
                 <td class="p-2 border no-print">
                   <button class="text-red-600 hover:text-red-800 btnEliminar" data-id="${tr.dataset.id}">🗑️</button>
                 </td>
@@ -873,16 +983,58 @@ Sistema RASIC`;
                 });
               }
               
-              const deadlineInput = Array.from(tr.cells).find(cell => {
-                const input = cell.querySelector('input[type="date"]');
-                return input && !input.disabled;
-              })?.querySelector('input[type="date"]');
-              
-              if (deadlineInput) {
-                deadlineInput.addEventListener('change', function() {
-                  actualizarSemaforo(this);
+              // Event listeners para tarea importada
+              const deadlineOriginal = tr.querySelector('.deadline-original');
+              if (deadlineOriginal) {
+                if (deadline) {
+                  // Ya tiene deadline - bloquearlo
+                  deadlineOriginal.dataset.bloqueado = 'true';
+                  deadlineOriginal.setAttribute('data-valor-bloqueado', deadline);
+                  deadlineOriginal.style.backgroundColor = '#E5E7EB';
+                  deadlineOriginal.style.cursor = 'not-allowed';
+                  actualizarSemaforo(deadlineOriginal);
+                }
+                
+                deadlineOriginal.addEventListener('change', function() {
+                  if (confirmarYBloquearDeadline(this)) {
+                    actualizarSemaforo(this);
+                    guardarTodo();
+                  }
                 });
-                if (deadline) actualizarSemaforo(deadlineInput);
+              }
+              
+              const nuevoDeadline = tr.querySelector('.nuevo-deadline');
+              if (nuevoDeadline) {
+                nuevoDeadline.addEventListener('change', function() {
+                  if (validarYBloquearNuevoDeadline(this)) {
+                    guardarTodo();
+                  }
+                });
+              }
+              
+              const selectFinalizada = tr.querySelector('.select-finalizada');
+              if (selectFinalizada) {
+                if (finalizada === 'Si') {
+                  const semaforo = tr.querySelector('.semaforo');
+                  if (semaforo) semaforo.textContent = '🔵';
+                  tr.style.backgroundColor = '#DBEAFE';
+                  tr.style.opacity = '0.7';
+                  
+                  // Tachar todas las celdas y sus elementos
+                  Array.from(tr.cells).forEach(cell => {
+                    cell.style.textDecoration = 'line-through';
+                    const inputs = cell.querySelectorAll('input, select, textarea');
+                    inputs.forEach(el => {
+                      el.style.textDecoration = 'line-through';
+                    });
+                  });
+                }
+                
+                selectFinalizada.addEventListener('change', function() {
+                  if (validarFinalizadaSi(this)) {
+                    guardarTodo();
+                  }
+                });
               }
               
               importadas++;
@@ -929,9 +1081,9 @@ Sistema RASIC`;
       // Resto de columnas
       html += `
         <td class="p-2 border">${fechaActual}</td>
-        <td class="p-2 border"><input type="date" class="w-full p-1 border rounded"></td>
+        <td class="p-2 border"><input type="date" class="w-full p-1 border rounded deadline-original"></td>
         <td class="p-2 border">
-          <select class="w-full p-1 border rounded">
+          <select class="w-full p-1 border rounded select-finalizada">
             <option>No</option>
             <option>Si</option>
           </select>
@@ -946,6 +1098,37 @@ Sistema RASIC`;
       tr.innerHTML = html;
       tbody.appendChild(tr);
       
+      // Event listener para deadline original (confirmar y bloquear)
+      const deadlineOriginal = tr.querySelector('.deadline-original');
+      if (deadlineOriginal) {
+        deadlineOriginal.addEventListener('change', function() {
+          if (confirmarYBloquearDeadline(this)) {
+            actualizarSemaforo(this);
+            guardarTodo();
+          }
+        });
+      }
+      
+      // Event listener para nuevo deadline (contraseña)
+      const nuevoDeadline = tr.querySelector('.nuevo-deadline');
+      if (nuevoDeadline) {
+        nuevoDeadline.addEventListener('change', function() {
+          if (validarYBloquearNuevoDeadline(this)) {
+            guardarTodo();
+          }
+        });
+      }
+      
+      // Event listener para finalizada (contraseña)
+      const selectFinalizada = tr.querySelector('.select-finalizada');
+      if (selectFinalizada) {
+        selectFinalizada.addEventListener('change', function() {
+          if (validarFinalizadaSi(this)) {
+            guardarTodo();
+          }
+        });
+      }
+      
       // Event listener para botón eliminar
       const btnEliminar = tr.querySelector('.btnEliminar');
       if (btnEliminar) {
@@ -959,13 +1142,6 @@ Sistema RASIC`;
         const input = cell.querySelector('input[type="date"]');
         return input && !input.disabled;
       })?.querySelector('input[type="date"]');
-      
-      if (deadlineInput) {
-        deadlineInput.addEventListener('change', function() {
-          actualizarSemaforo(this);
-        });
-      }
-      
       console.log('✅ Tarea añadida');
     }
     
@@ -1074,7 +1250,7 @@ Sistema RASIC`;
           // Resto de columnas
           html += `
             <td class="p-2 border">${task.fechaActual}</td>
-            <td class="p-2 border"><input type="date" class="w-full p-1 border rounded" value="${task.deadline || ''}"></td>
+            <td class="p-2 border"><input type="date" class="w-full p-1 border rounded deadline-original" value="${task.deadline || ''}"></td>
             <td class="p-2 border">
               <select class="w-full p-1 border rounded">
                 <option ${task.tareaFinalizada === 'No' ? 'selected' : ''}>No</option>
@@ -1112,9 +1288,69 @@ Sistema RASIC`;
             return input && !input.disabled;
           })?.querySelector('input[type="date"]');
           
-          if (deadlineInput) {
-            deadlineInput.addEventListener('change', function() {
-              actualizarSemaforo(this);
+          // Event listeners para tareas cargadas
+          const deadlineOriginal = tr.querySelector('.deadline-original');
+          if (deadlineOriginal && task.deadline) {
+            // Marcar como bloqueado si ya tiene deadline
+            deadlineOriginal.dataset.bloqueado = 'true';
+            deadlineOriginal.setAttribute('data-valor-bloqueado', task.deadline);
+            deadlineOriginal.style.backgroundColor = '#E5E7EB';
+            deadlineOriginal.style.cursor = 'not-allowed';
+            
+            deadlineOriginal.addEventListener('change', function() {
+              if (confirmarYBloquearDeadline(this)) {
+                actualizarSemaforo(this);
+                guardarTodo();
+              }
+            });
+          } else if (deadlineOriginal) {
+            // Sin deadline todavía - añadir listener normal
+            deadlineOriginal.addEventListener('change', function() {
+              if (confirmarYBloquearDeadline(this)) {
+                actualizarSemaforo(this);
+                guardarTodo();
+              }
+            });
+          }
+          
+          const nuevoDeadline = tr.querySelector('.nuevo-deadline');
+          if (nuevoDeadline) {
+            // Si ya tiene valor, bloquearlo
+            if (nuevoDeadline.value) {
+              nuevoDeadline.disabled = true;
+              nuevoDeadline.style.backgroundColor = '#FED7AA';
+            }
+            
+            nuevoDeadline.addEventListener('change', function() {
+              if (validarYBloquearNuevoDeadline(this)) {
+                guardarTodo();
+              }
+            });
+          }
+          
+          const selectFinalizada = tr.querySelector('.select-finalizada');
+          if (selectFinalizada) {
+            // Si ya está finalizada, aplicar estilos
+            if (task.tareaFinalizada === 'Si') {
+              const semaforo = tr.querySelector('.semaforo');
+              if (semaforo) semaforo.textContent = '🔵';
+              tr.style.backgroundColor = '#DBEAFE';
+              tr.style.opacity = '0.7';
+              
+              // Tachar todas las celdas y sus elementos
+              Array.from(tr.cells).forEach(cell => {
+                cell.style.textDecoration = 'line-through';
+                const inputs = cell.querySelectorAll('input, select, textarea');
+                inputs.forEach(el => {
+                  el.style.textDecoration = 'line-through';
+                });
+              });
+            }
+            
+            selectFinalizada.addEventListener('change', function() {
+              if (validarFinalizadaSi(this)) {
+                guardarTodo();
+              }
             });
           }
         });
